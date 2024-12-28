@@ -1,5 +1,7 @@
 # TUIsh
 
+![alt text](https://github.com/mrhappynice/tuish/blob/main/tuish.jpg?raw=true)
+
 - Make executable:
 ```bash
 chmod +x tuish.sh
