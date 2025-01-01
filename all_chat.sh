@@ -1,28 +1,33 @@
 #!/usr/bin/env bash
 #
-# chat.sh
+# all_chat.sh
 # A simple chat interface supporting multiple LLM services:
 #   - Ollama (local server)   [default]
 #   - Groq (OpenAI-compatible endpoint)
 #   - Google Generative Language
+#   - Deepseek
 #   - (Optional) OpenAI
+#   - SambaNova
 #
 # Uses jq for building/parsing JSON, and includes a system message.
 
 # -----------------------------------------------------------------------------
 # -- Configuration & Defaults -------------------------------------------------
 
-: "${OLLAMA_API_URL:=http://localhost:11434/api/generate}"        # Set your model below
+: "${OLLAMA_API_URL:=http://localhost:11434/api/generate}"        # Example local
+: "${OLLAMA_TAGS_URL:=http://localhost:11434/api/tags}" # Ollama tags endpoint
 : "${DEFAULT_MODEL_OLLAMA:=hf.co/Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF:Q4_K_M}"
 : "${DEFAULT_MODEL_GROQ:=llama3-8b-8192}"
 : "${DEFAULT_MODEL_GOOGLE:=gemini-1.5-flash}"
+: "${DEFAULT_MODEL_DEEPSEEK:=deepseek-chat}"
 : "${DEFAULT_MODEL_OPENAI:=gpt-4o-mini}"
+: "${DEFAULT_MODEL_SAMBANOVA:=Qwen2.5-72B-Instruct}"
 
 SYSTEM_MSG="You are a helpful assistant."
 
-# Which service is currently selected?  (ollama|groq|google|openai)
-SELECTED_SERVICE="ollama"
-SELECTED_MODEL="$DEFAULT_MODEL_OLLAMA"
+# Which service is currently selected?  (ollama|groq|google|deepseek|openai|sambanova)
+SELECTED_SERVICE="sambanova"
+SELECTED_MODEL="$DEFAULT_MODEL_SAMBANOVA"
 
 echo "      .-::TUIsh::-.         "
 echo "Switch to chat pane ctrl+b+;"
@@ -74,7 +79,7 @@ build_prompt_ollama() {
 }
 
 # -----------------------------------------------------------------------------
-# Function to build OpenAI-compatible messages array (used by Groq / OpenAI)
+# Function to build OpenAI-compatible messages array (used by Groq / OpenAI / Deepseek / SambaNova)
 build_messages_openai_format() {
   # We already store the conversation in a role+content array, which is actually
   # OpenAI-compatible. So we can simply pass MESSAGES_JSON as is, if we want.
@@ -112,14 +117,41 @@ build_prompt_google() {
 }
 
 # -----------------------------------------------------------------------------
+# Function to fetch available models from Ollama
+get_ollama_models() {
+  local models
+  # Use OLLAMA_TAGS_URL variable for API endpoint
+  models=$(curl -s "$OLLAMA_TAGS_URL" | jq -r '.models[].name')
+  if [ -z "$models" ]; then
+    echo "Error: Could not fetch models from Ollama." >&2
+    return 1
+  fi
+  echo "$models"
+}
+
+# -----------------------------------------------------------------------------
+# Function to fetch available models from Google Generative AI
+get_google_models() {
+  local models
+  models=$(curl -s "https://generativelanguage.googleapis.com/v1beta/models?key=$GOOGLE_API_KEY" | jq -r '.models[].name')
+  if [ -z "$models" ]; then
+    echo "Error: Could not fetch models from Google Generative AI." >&2
+    return 1
+  fi
+  echo "$models"
+}
+
+# -----------------------------------------------------------------------------
 # Helper function to select LLM service & model with dialog
 select_llm() {
   # 1) Pick the service
-  SELECTED_SERVICE=$(dialog --clear --title "Select LLM Service" --menu "Choose one:" 15 50 4 \
+  SELECTED_SERVICE=$(dialog --clear --title "Select LLM Service" --menu "Choose one:" 15 50 6 \
     "ollama" "Local Ollama Server" \
     "groq" "Groq LLM Service" \
     "google" "Google Generative Language" \
+    "deepseek" "Deepseek" \
     "openai" "OpenAI Chat Completions" \
+    "sambanova" "SambaNova" \
     2>&1 >/dev/tty)
   clear
 
@@ -132,10 +164,19 @@ select_llm() {
   # 2) Pick the model for that service
   case "$SELECTED_SERVICE" in
     "ollama")
-      SELECTED_MODEL=$(dialog --clear --title "Select Model" --menu "Choose a model:" 15 60 4 \
-        "$DEFAULT_MODEL_OLLAMA"  "Default Qwen Model" \
-        "another-model"          "Example of a second local model" \
-        2>&1 >/dev/tty)
+      # Fetch models from Ollama dynamically
+      local ollama_models
+      ollama_models=$(get_ollama_models)
+      if [ $? -ne 0 ]; then return 1; fi # Exit if fetching models failed
+
+      # Build dialog arguments dynamically
+      local dialog_args=()
+      while read -r model; do
+        dialog_args+=("$model" "$model")
+      done <<< "$ollama_models"
+
+      # Display dialog with fetched models
+      SELECTED_MODEL=$(dialog --clear --title "Select Model" --menu "Choose a model:" 15 60 "$((${#dialog_args[@]}/2))" "${dialog_args[@]}" 2>&1 >/dev/tty)
       clear
       if [ -z "$SELECTED_MODEL" ]; then
         SELECTED_MODEL="$DEFAULT_MODEL_OLLAMA"
@@ -144,7 +185,11 @@ select_llm() {
     "groq")
       SELECTED_MODEL=$(dialog --clear --title "Select Model" --menu "Choose a model:" 15 60 4 \
         "$DEFAULT_MODEL_GROQ"  "Llama3-8b-8192" \
-        "another-model"        "Example second Groq model" \
+        "gemma2-9b-it"        "gemma2-9b-it" \
+        "llama-3.3-70b-versatile"        "llama-3.3-70b-versatile" \
+        "llama-3.1-8b-instant"        "llama-3.1-8b-instant" \
+        "mixtral-8x7b-32768"        "mixtral-8x7b-32768" \
+        "llama-3.2-3b-preview"        "llama-3.2-3b-preview" \
         2>&1 >/dev/tty)
       clear
       if [ -z "$SELECTED_MODEL" ]; then
@@ -152,26 +197,55 @@ select_llm() {
       fi
       ;;
     "google")
-      SELECTED_MODEL=$(dialog --clear --title "Select Model" --menu "Choose a model:" 15 60 4 \
-        "$DEFAULT_MODEL_GOOGLE"  "1.5 Flash" \
-        "gemini-1.5-flash-8b"          "1.5 Flash 8B" \
-	"gemini-2.0-flash-exp"		"2.0 Flash Exp" \
-        2>&1 >/dev/tty)
+      # Fetch models from Google dynamically
+      local google_models
+      google_models=$(get_google_models)
+      if [ $? -ne 0 ]; then return 1; fi
+
+      # Build dialog arguments dynamically
+      local dialog_args=()
+      while read -r model; do
+        dialog_args+=("$model" "$model")
+      done <<< "$google_models"
+
+      # Display dialog with fetched models
+      SELECTED_MODEL=$(dialog --clear --title "Select Model" --menu "Choose a model:" 15 60 "$((${#dialog_args[@]}/2))" "${dialog_args[@]}" 2>&1 >/dev/tty)
       clear
       if [ -z "$SELECTED_MODEL" ]; then
         SELECTED_MODEL="$DEFAULT_MODEL_GOOGLE"
       fi
       ;;
+    "deepseek")
+        SELECTED_MODEL="deepseek-chat"
+    ;;
     "openai")
       SELECTED_MODEL=$(dialog --clear --title "Select Model" --menu "Choose a model:" 15 60 4 \
         "$DEFAULT_MODEL_OPENAI"  "4o mini" \
-        "gpt-4o"                  "The full o" \
+        "chatgpt-4o-latest"                  "ChatGPT 4o" \
+        "o1"                  "o1" \
+        "o1-mini"                  "o1-mini" \
         2>&1 >/dev/tty)
       clear
       if [ -z "$SELECTED_MODEL" ]; then
         SELECTED_MODEL="$DEFAULT_MODEL_OPENAI"
       fi
       ;;
+    "sambanova")
+      SELECTED_MODEL=$(dialog --clear --title "Select Model" --menu "Choose a model:" 15 60 2 \
+        "$DEFAULT_MODEL_SAMBANOVA"  "Qwen2.5-72B-Instruct" \
+        "Meta-Llama-3.1-405B-Instruct"                  "Meta-Llama-3.1-405B-Instruct" \
+        "Meta-Llama-3.1-8B-Instruct"                  "Meta-Llama-3.1-8B-Instruct" \
+        "Meta-Llama-3.2-3B-Instruct"                  "Meta-Llama-3.2-3B-Instruct" \
+        "Qwen2.5-Coder-32B-Instruct"                  "Qwen2.5-Coder-32B-Instruct" \
+        "QwQ-32B-Preview"                  "QwQ-32B-Preview" \
+        "Qwen2.5-72B-Instruct"                  "Qwen2.5-72B-Instruct" \
+        2>&1 >/dev/tty)
+      clear
+      if [ -z "$SELECTED_MODEL" ]; then
+        SELECTED_MODEL="$DEFAULT_MODEL_SAMBANOVA"
+      fi
+      ;;
+
   esac
 
   echo "Selected service: $SELECTED_SERVICE"
@@ -290,11 +364,31 @@ while true; do
       JSON_BODY=$(build_prompt_google)
 
       RESPONSE=$(curl -s -X POST \
-        "https://generativelanguage.googleapis.com/v1beta/models/$SELECTED_MODEL:generateContent?key=$GOOGLE_API_KEY" \
+        "https://generativelanguage.googleapis.com/v1beta/$SELECTED_MODEL:generateContent?key=$GOOGLE_API_KEY" \
         -H "Content-Type: application/json" \
         -d "$JSON_BODY")
 
       ASSISTANT_CONTENT=$(echo "$RESPONSE" | jq -r '.candidates[0].content.parts[0].text // empty')
+      ;;
+
+    # ----------------- D E E P S E E K -----------------
+    deepseek)
+      JSON_BODY=$(jq -n \
+        --arg model "$SELECTED_MODEL" \
+        --argjson msgs "$(build_messages_openai_format)" \
+        '{
+          model: $model,
+          messages: $msgs,
+          stream: false
+        }'
+      )
+
+      RESPONSE=$(curl -s https://api.deepseek.com/chat/completions \
+        -H "Content-Type: application/json" \
+        -H "Authorization: Bearer $DS_API_KEY" \
+        -d "$JSON_BODY")
+
+      ASSISTANT_CONTENT=$(echo "$RESPONSE" | jq -r '.choices[0].message.content // empty')
       ;;
 
     # ----------------- O P E N A I -----------------
@@ -314,6 +408,26 @@ while true; do
 
       ASSISTANT_CONTENT=$(echo "$RESPONSE" | jq -r '.choices[0].message.content // empty')
       ;;
+
+    # ----------------- S A M B A N O V A -----------------
+    sambanova)
+      JSON_BODY=$(jq -n \
+        --arg model "$SELECTED_MODEL" \
+        --argjson msgs "$(build_messages_openai_format)" \
+        '{
+          model: $model,
+          messages: $msgs
+        }'
+      )
+
+      RESPONSE=$(curl -s https://api.sambanova.ai/v1/chat/completions \
+        -H "Content-Type: application/json" \
+        -H "Authorization: Bearer $SN_API_KEY" \
+        -d "$JSON_BODY")
+
+      ASSISTANT_CONTENT=$(echo "$RESPONSE" | jq -r '.choices[0].message.content // empty')
+      ;;
+
     *)
       # Default fallback if service unknown
       echo "[Error: No valid service selected.]"
