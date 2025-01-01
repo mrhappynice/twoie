@@ -4,6 +4,9 @@ Access models from OpenAI, Google, Groq, SambaNova, and Deepseek(so far). Paste 
 
 ![alt text](https://github.com/mrhappynice/tuish/blob/main/tuish.jpg?raw=true)
 
+- Easily select provider and model:
+![alt text](https://github.com/mrhappynice/tuish/blob/main/tuish_dialog.jpg?raw=true)
+
 ##
 
 ### edit export_keys file, add your keys then:
