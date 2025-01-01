@@ -1,5 +1,7 @@
 # TUIsh
 
+Access models from OpenAI, Google, Groq, SambaNova, and Deepseek(so far). Paste and edit responses all from your terminal. Use on any Linux based command line including Termux on Android with minimal requirements. Installation is super simple. Just use your favorite package manager to make sure you have tmux, jq, curl and dialog installed, chmod the shell files and run tuish.sh.
+
 ![alt text](https://github.com/mrhappynice/tuish/blob/main/tuish.jpg?raw=true)
 
 - Make executable:
