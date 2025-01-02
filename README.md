@@ -1,4 +1,4 @@
-# TUIsh
+# Twoie
 
 Access models from OpenAI, Google, Groq, SambaNova, and Deepseek(so far). Paste and edit responses all from the command line. Use on any Linux based terminal including Termux on Android with minimal requirements. Installation is super simple. Just use your favorite package manager to make sure you have tmux, jq, curl and dialog are installed, chmod the shell files and run tuish.sh.
 
@@ -24,7 +24,7 @@ export SN_API_KEY="put-key-here"
 
 ### Make executable:
 ```bash
-chmod +x tuish.sh
+chmod +x twoie.sh
 chmod +x all_chat.sh
 ```
 
@@ -38,7 +38,7 @@ On line 32 of tuish.sh, you can remove -Sl after the nano command if you do not 
 
 ### To run simply:
 ```bash
-./tuish.sh
+./twoie.sh
 ```
 
 ##
