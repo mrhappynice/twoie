@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# tuish.sh
+# twoie.sh
 # Launches a tmux session with two panes:
 # Left pane for editing a document, right pane for the chat interface.
 
