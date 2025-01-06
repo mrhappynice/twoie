@@ -1,6 +1,6 @@
 # Twoie
 
-Access models from OpenAI, Google, Groq, SambaNova, and Deepseek(so far). Paste and edit responses all from the command line. Use on any Linux based terminal including Termux on Android with minimal requirements. Installation is super simple. Just use your favorite package manager to make sure you have tmux, jq, curl and dialog are installed, chmod the shell files and run twoie.sh. Dorky promo video thing I made for it: https://www.youtube.com/watch?v=5ASjYKRf-pw 
+Access models from OpenAI, Google, Groq, SambaNova, and Deepseek(so far) - with Ollama support(auto-list your models). Paste and edit responses all from the command line. Use on any Linux based terminal including Termux on Android with minimal requirements. Installation is super simple. Just use your favorite package manager to make sure you have tmux, jq, curl and dialog are installed, chmod the shell files and run twoie.sh. Dorky promo video thing I made for it: https://www.youtube.com/watch?v=5ASjYKRf-pw 
 
 ![alt text](https://github.com/mrhappynice/tuish/blob/main/tuish.jpg?raw=true)
 
